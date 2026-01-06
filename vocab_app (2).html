@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Master</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-right: 10px;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .vocab-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .vocab-item .word {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .delete-btn {
+            background: #f5576c;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            float: right;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            flex: 1;
+            margin: 0 10px;
+        }
+
+        .stat-box .number {
+            font-size: 2em;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message.success { background: #d4edda; color: #155724; }
+        .message.error { background: #f8d7da; color: #721c24; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-top: 10px;
+            background: #d4edda;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Vocabulary Master</h1>
+            <p>Words are saved to your browser's local storage</p>
+            <span class="status-badge" id="statusBadge">✓ Data Localized</span>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="number" id="totalWords">0</div>
+                <div class="label">Total Words</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" id="todayWords">0</div>
+                <div class="label">Added Today</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">Add New Word</h2>
+            <div id="message" class="message"></div>
+            <form id="vocabForm">
+                <div class="input-group">
+                    <label for="word">Word</label>
+                    <input type="text" id="word" placeholder="Enter a word..." required>
+                </div>
+                <div class="input-group">
+                    <label for="meaning">Meaning</label>
+                    <textarea id="meaning" placeholder="Enter the meaning..." required></textarea>
+                </div>
+                <button type="submit" class="btn">Add Word</button>
+                <button type="button" class="btn btn-secondary" onclick="downloadCSV()">Export to CSV</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">Your Vocabulary</h2>
+            <div class="input-group">
+                <input type="text" id="searchInput" placeholder="🔍 Search words..." onkeyup="searchWords()">
+            </div>
+            <div id="vocabList"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script>
+        let vocabulary = [];
+        const STORAGE_KEY = 'vocabulary_data';
+        const todayStr = new Date().toDateString();
+
+        // Load data on startup
+        window.addEventListener('load', () => {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) {
+                Papa.parse(savedData, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        vocabulary = results.data;
+                        displayVocabulary();
+                        updateStats();
+                    }
+                });
+            }
+        });
+
+        // Save data to LocalStorage
+        function saveToStorage() {
+            const csv = Papa.unparse(vocabulary);
+            localStorage.setItem(STORAGE_KEY, csv);
+            updateStats();
+        }
+
+        // Form Submission
+        document.getElementById('vocabForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const word = document.getElementById('word').value.trim();
+            const meaning = document.getElementById('meaning').value.trim();
+
+            const newEntry = {
+                word: word,
+                meaning: meaning,
+                date: new Date().toISOString()
+            };
+
+            vocabulary.push(newEntry);
+            saveToStorage();
+            displayVocabulary();
+            
+            document.getElementById('vocabForm').reset();
+            showMessage('Word added successfully!', 'success');
+        });
+
+        function displayVocabulary(list = vocabulary) {
+            const container = document.getElementById('vocabList');
+            if (list.length === 0) {
+                container.innerHTML = '<p style="text-align:center;color:#666;">No words found.</p>';
+                return;
+            }
+
+            container.innerHTML = list.map((item, index) => `
+                <div class="vocab-item">
+                    <button class="delete-btn" onclick="deleteWord(${vocabulary.indexOf(item)})">Delete</button>
+                    <div class="word">${item.word}</div>
+                    <div class="meaning">${item.meaning}</div>
+                </div>
+            `).join('');
+        }
+
+        function deleteWord(index) {
+            if (confirm('Are you sure?')) {
+                vocabulary.splice(index, 1);
+                saveToStorage();
+                displayVocabulary();
+            }
+        }
+
+        function searchWords() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = vocabulary.filter(v => 
+                v.word.toLowerCase().includes(term) || 
+                v.meaning.toLowerCase().includes(term)
+            );
+            displayVocabulary(filtered);
+        }
+
+        function updateStats() {
+            document.getElementById('totalWords').textContent = vocabulary.length;
+            const countToday = vocabulary.filter(v => 
+                new Date(v.date).toDateString() === todayStr
+            ).length;
+            document.getElementById('todayWords').textContent = countToday;
+        }
+
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `message ${type}`;
+            msg.style.display = 'block';
+            setTimeout(() => msg.style.display = 'none', 3000);
+        }
+
+        // Download functionality
+        function downloadCSV() {
+            if (vocabulary.length === 0) return alert("No data to export");
+            const csv = Papa.unparse(vocabulary);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "BookSheet1.csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
